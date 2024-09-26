@@ -47,9 +47,9 @@ class HashUtil {
 // See Martin Dietzfelbinger, "Universal hashing and k-wise independent random
 // variables via integer arithmetic without primes".
 class TwoIndependentMultiplyShift {
+  public:
   unsigned __int128 multiply_, add_;
 
- public:
   TwoIndependentMultiplyShift() {
     ::std::random_device random;
     for (auto v : {&multiply_, &add_}) {

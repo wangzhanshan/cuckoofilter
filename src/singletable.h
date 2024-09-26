@@ -14,6 +14,7 @@ namespace cuckoofilter {
 // the most naive table implementation: one huge bit array
 template <size_t bits_per_tag>
 class SingleTable {
+ public:
   static const size_t kTagsPerBucket = 4;
   static const size_t kBytesPerBucket =
       (bits_per_tag * kTagsPerBucket + 7) >> 3;
@@ -31,7 +32,6 @@ class SingleTable {
   Bucket *buckets_;
   size_t num_buckets_;
 
- public:
   explicit SingleTable(const size_t num) : num_buckets_(num) {
     buckets_ = new Bucket[num_buckets_ + kPaddingBuckets];
     memset(buckets_, 0, kBytesPerBucket * (num_buckets_ + kPaddingBuckets));
@@ -128,6 +128,8 @@ class SingleTable {
 
     uint64_t v1 = *((uint64_t *)p1);
     uint64_t v2 = *((uint64_t *)p2);
+
+    // std::cout << ", " << v1 << ", " << v2;
 
     // caution: unaligned access & assuming little endian
     if (bits_per_tag == 4 && kTagsPerBucket == 4) {

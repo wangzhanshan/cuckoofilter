@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <algorithm>
+#include <fstream>
 
 #include "debug.h"
 #include "hashutil.h"
@@ -97,6 +98,10 @@ class CuckooFilter {
     table_ = new TableType<bits_per_item>(num_buckets);
   }
 
+  explicit CuckooFilter(const std::string& filename) : num_items_(0), victim_(), hasher_() {
+    DeserializeFromFile(filename);
+  }
+
   ~CuckooFilter() { delete table_; }
 
   // Add an item to the filter.
@@ -117,6 +122,77 @@ class CuckooFilter {
 
   // size of the filter in bytes.
   size_t SizeInBytes() const { return table_->SizeInBytes(); }
+
+  // 序列化
+    bool SerializeToFile(const std::string& filename) const {
+    std::ofstream outFile(filename, std::ios::out | std::ios::binary);
+    if (!outFile) {
+      return false;
+    }
+
+    // 写入 num_items_
+    outFile.write(reinterpret_cast<const char*>(&num_items_), sizeof(num_items_));
+
+    //如果使用了hasher_，必须把写入hash参数
+    // 写入 multiply_ 的低64位和高64位
+    uint64_t multiply_low = static_cast<uint64_t>(hasher_.multiply_);
+    uint64_t multiply_high = static_cast<uint64_t>(hasher_.multiply_ >> 64);
+    outFile.write(reinterpret_cast<const char*>(&multiply_low), sizeof(multiply_low));
+    outFile.write(reinterpret_cast<const char*>(&multiply_high), sizeof(multiply_high));
+
+    // 写入 add_ 的低64位和高64位
+    uint64_t add_low = static_cast<uint64_t>(hasher_.add_);
+    uint64_t add_high = static_cast<uint64_t>(hasher_.add_ >> 64);
+    outFile.write(reinterpret_cast<const char*>(&add_low), sizeof(add_low));
+    outFile.write(reinterpret_cast<const char*>(&add_high), sizeof(add_high));
+
+    // 写入 table_ 的内容
+    outFile.write(reinterpret_cast<const char*>(&table_->num_buckets_), sizeof(table_->num_buckets_));
+    size_t tableSize = table_->num_buckets_ + table_->kPaddingBuckets;
+    for (size_t i = 0; i < tableSize; ++i) {
+      outFile.write(table_->buckets_[i].bits_, table_->kBytesPerBucket);
+    }
+
+    outFile.close();
+    return true;
+  }
+  
+  // 反序列化
+    bool DeserializeFromFile(const std::string& filename) {
+    std::ifstream inFile(filename, std::ios::in | std::ios::binary);
+    if (!inFile) {
+      std::cout << filename << "does not exist!" << std::endl;
+      return false;
+    }
+
+    // 读取 num_items_
+    inFile.read(reinterpret_cast<char*>(&num_items_), sizeof(num_items_));
+
+    // 如果使用了hasher_类型为TwoIndependentMultiplyShift，必须读取hash参数
+    // 读取 multiply_ 的低64位和高64位
+    uint64_t multiply_low, multiply_high;
+    inFile.read(reinterpret_cast<char*>(&multiply_low), sizeof(multiply_low));
+    inFile.read(reinterpret_cast<char*>(&multiply_high), sizeof(multiply_high));
+    hasher_.multiply_ = (static_cast<unsigned __int128>(multiply_high) << 64) | multiply_low;
+
+    // 读取 add_ 的低64位和高64位
+    uint64_t add_low, add_high;
+    inFile.read(reinterpret_cast<char*>(&add_low), sizeof(add_low));
+    inFile.read(reinterpret_cast<char*>(&add_high), sizeof(add_high));
+    hasher_.add_ = (static_cast<unsigned __int128>(add_high) << 64) | add_low;
+
+    // 重建 table_
+    size_t num_buckets_ = 0;
+    inFile.read(reinterpret_cast<char*>(&num_buckets_), sizeof(num_buckets_));
+    table_ = new SingleTable<bits_per_item>(num_buckets_);
+    size_t tableSize = num_buckets_ + SingleTable<bits_per_item>::kPaddingBuckets;
+    for (size_t i = 0; i < tableSize; ++i) {
+      inFile.read(table_->buckets_[i].bits_, SingleTable<bits_per_item>::kBytesPerBucket);
+    }
+
+    inFile.close();
+    return true;
+  }
 };
 
 template <typename ItemType, size_t bits_per_item,

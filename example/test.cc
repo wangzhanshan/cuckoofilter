@@ -48,5 +48,19 @@ int main(int argc, char **argv) {
   std::cout << "false positive rate is "
             << 100.0 * false_queries / total_queries << "%\n";
 
+  filter.SerializeToFile("filterdata.bin");
+  CuckooFilter<size_t, 12> clientFilter("filterdata.bin");
+
+  for (size_t i = 0; i < num_inserted; i++) {
+    assert((clientFilter.Contain(i)) == cuckoofilter::Ok);
+  }
+
+  std::cout << "success" << std::endl;
+
+  /* 如果要添加string类型，需要先使用cityhash64函数转为整形
+  # inclued <city.h>
+  filter.Add(CityHash64(line.c_str(), line.length()))
+  */
+
   return 0;
 }
